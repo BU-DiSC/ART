@@ -4,6 +4,8 @@
   leis@in.tum.de
  */
 
+#pragma once
+
 #include <assert.h>
 #include <emmintrin.h>  // x86 SSE intrinsics
 #include <stdint.h>     // integer types
@@ -14,6 +16,8 @@
 
 #include <algorithm>  // std::random_shuffle
 #include <chrono>
+
+namespace ART {
 
 // Constants for the node types
 static const int8_t NodeType4 = 0;
@@ -671,4 +675,5 @@ void eraseNode256(Node256* node, Node** nodeRef, uint8_t keyByte) {
         }
         delete node;
     }
+}
 }
