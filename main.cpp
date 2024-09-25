@@ -14,11 +14,8 @@ std::vector<key_type> read_bin(const char* filename) {
     inputFile.seekg(0, std::ios::end);
     const std::streampos fileSize = inputFile.tellg();
     inputFile.seekg(0, std::ios::beg);
-
     std::vector<key_type> data(fileSize / sizeof(key_type));
-
     inputFile.read(reinterpret_cast<char*>(data.data()), fileSize);
-
     return data;
 }
 
@@ -35,7 +32,7 @@ int main(int argc, char** argv) {
             N = atoi(argv[i + 1]);
             i += 2;
         } else if (string(argv[i]) == "-f") {
-            input_file = argv[i+1];
+            input_file = argv[i + 1];
             i += 2;
         }
     }
