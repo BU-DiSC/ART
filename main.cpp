@@ -1,5 +1,5 @@
 
-#include <ART.h>
+#include "ART.h"
 
 #include <chrono>
 #include <fstream>
@@ -21,9 +21,8 @@ std::vector<key_type> read_bin(const char* filename) {
 
 int main(int argc, char** argv) {
     bool verbose = false;  // optional argument
-    int N = 1000000;       // optional argument
+    int N = 5000000;       // optional argument
     string input_file;     // required argument
-
     // Parse arguments; make sure to increment i by 2 if you consume an argument
     for (int i = 1; i < argc;) {
         if (string(argv[i]) == "-v") {
@@ -33,7 +32,7 @@ int main(int argc, char** argv) {
             N = atoi(argv[i + 1]);
             i += 2;
         } else if (string(argv[i]) == "-f") {
-            input_file = argv[i];
+            input_file = argv[i + 1];
             i += 2;
         }
     }
