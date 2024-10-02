@@ -31,7 +31,7 @@ static const int8_t NodeType256 = 3;
 static const unsigned maxPrefixLength = 9;
 
 // Shared header of all inner nodes
-struct Node {
+struct ArtNode {
     // length of the compressed path (prefix)
     uint32_t prefixLength;
     // number of non-null children
@@ -41,26 +41,26 @@ struct Node {
     // compressed path (prefix)
     uint8_t prefix[maxPrefixLength];
 
-    Node(int8_t type) : prefixLength(0), count(0), type(type) {}
+    ArtNode(int8_t type) : prefixLength(0), count(0), type(type) {}
 };
 
 // Node with up to 4 children
-struct Node4 : Node {
+struct Node4 : ArtNode {
     uint8_t key[4];
-    Node* child[4];
+    ArtNode* child[4];
 
-    Node4() : Node(NodeType4) {
+    Node4() : ArtNode(NodeType4) {
         memset(key, 0, sizeof(key));
         memset(child, 0, sizeof(child));
     }
 };
 
 // Node with up to 16 children
-struct Node16 : Node {
+struct Node16 : ArtNode {
     uint8_t key[16];
-    Node* child[16];
+    ArtNode* child[16];
 
-    Node16() : Node(NodeType16) {
+    Node16() : ArtNode(NodeType16) {
         memset(key, 0, sizeof(key));
         memset(child, 0, sizeof(child));
     }
@@ -69,34 +69,34 @@ struct Node16 : Node {
 static const uint8_t emptyMarker = 48;
 
 // Node with up to 48 children
-struct Node48 : Node {
+struct Node48 : ArtNode {
     uint8_t childIndex[256];
-    Node* child[48];
+    ArtNode* child[48];
 
-    Node48() : Node(NodeType48) {
+    Node48() : ArtNode(NodeType48) {
         memset(childIndex, emptyMarker, sizeof(childIndex));
         memset(child, 0, sizeof(child));
     }
 };
 
 // Node with up to 256 children
-struct Node256 : Node {
-    Node* child[256];
+struct Node256 : ArtNode {
+    ArtNode* child[256];
 
-    Node256() : Node(NodeType256) { memset(child, 0, sizeof(child)); }
+    Node256() : ArtNode(NodeType256) { memset(child, 0, sizeof(child)); }
 };
 
-inline Node* makeLeaf(uintptr_t tid) {
+inline ArtNode* makeLeaf(uintptr_t tid) {
     // Create a pseudo-leaf
-    return reinterpret_cast<Node*>((tid << 1) | 1);
+    return reinterpret_cast<ArtNode*>((tid << 1) | 1);
 }
 
-inline uintptr_t getLeafValue(Node* node) {
+inline uintptr_t getLeafValue(ArtNode* node) {
     // The the value stored in the pseudo-leaf
     return reinterpret_cast<uintptr_t>(node) >> 1;
 }
 
-inline bool isLeaf(Node* node) {
+inline bool isLeaf(ArtNode* node) {
     // Is the node a leaf?
     return reinterpret_cast<uintptr_t>(node) & 1;
 }
@@ -114,7 +114,7 @@ void loadKey(uintptr_t tid, uint8_t key[]) {
 }
 
 // This address is used to communicate that search failed
-Node* nullNode = NULL;
+ArtNode* nullNode = NULL;
 
 static inline unsigned ctz(uint16_t x) {
     // Count trailing zeros, only defined for x>0
@@ -139,7 +139,7 @@ static inline unsigned ctz(uint16_t x) {
 #endif
 }
 
-Node** findChild(Node* n, uint8_t keyByte) {
+ArtNode** findChild(ArtNode* n, uint8_t keyByte) {
     // Find the next child for the keyByte
     switch (n->type) {
         case NodeType4: {
@@ -175,7 +175,7 @@ Node** findChild(Node* n, uint8_t keyByte) {
     throw;  // Unreachable
 }
 
-Node* minimum(Node* node) {
+ArtNode* minimum(ArtNode* node) {
     // Find the leaf with smallest key
     if (!node) return NULL;
 
@@ -206,7 +206,7 @@ Node* minimum(Node* node) {
     throw;  // Unreachable
 }
 
-Node* maximum(Node* node) {
+ArtNode* maximum(ArtNode* node) {
     // Find the leaf with largest key
     if (!node) return NULL;
 
@@ -237,8 +237,8 @@ Node* maximum(Node* node) {
     throw;  // Unreachable
 }
 
-bool leafMatches(Node* leaf, uint8_t key[], unsigned keyLength, unsigned depth,
-                 unsigned maxKeyLength) {
+bool leafMatches(ArtNode* leaf, uint8_t key[], unsigned keyLength,
+                 unsigned depth, unsigned maxKeyLength) {
     // Check if the key of the leaf is equal to the searched key
     if (depth != keyLength) {
         uint8_t leafKey[maxKeyLength];
@@ -249,7 +249,7 @@ bool leafMatches(Node* leaf, uint8_t key[], unsigned keyLength, unsigned depth,
     return true;
 }
 
-unsigned prefixMismatch(Node* node, uint8_t key[], unsigned depth,
+unsigned prefixMismatch(ArtNode* node, uint8_t key[], unsigned depth,
                         unsigned maxKeyLength) {
     // Compare the key with the prefix of the node, return the number matching
     // bytes
@@ -268,8 +268,8 @@ unsigned prefixMismatch(Node* node, uint8_t key[], unsigned depth,
     return pos;
 }
 
-Node* lookup(Node* node, uint8_t key[], unsigned keyLength, unsigned depth,
-             unsigned maxKeyLength) {
+ArtNode* lookup(ArtNode* node, uint8_t key[], unsigned keyLength,
+                unsigned depth, unsigned maxKeyLength) {
     // Find the node with a matching key, optimistic version
 
     bool skippedPrefix =
@@ -307,8 +307,8 @@ Node* lookup(Node* node, uint8_t key[], unsigned keyLength, unsigned depth,
     return NULL;
 }
 
-Node* lookupPessimistic(Node* node, uint8_t key[], unsigned keyLength,
-                        unsigned depth, unsigned maxKeyLength) {
+ArtNode* lookupPessimistic(ArtNode* node, uint8_t key[], unsigned keyLength,
+                           unsigned depth, unsigned maxKeyLength) {
     // Find the node with a matching key, alternative pessimistic version
 
     while (node != NULL) {
@@ -332,24 +332,28 @@ Node* lookupPessimistic(Node* node, uint8_t key[], unsigned keyLength,
 }
 
 // Forward references
-void insertNode4(Node4* node, Node** nodeRef, uint8_t keyByte, Node* child);
-void insertNode16(Node16* node, Node** nodeRef, uint8_t keyByte, Node* child);
-void insertNode48(Node48* node, Node** nodeRef, uint8_t keyByte, Node* child);
-void insertNode256(Node256* node, Node** nodeRef, uint8_t keyByte, Node* child);
+void insertNode4(Node4* node, ArtNode** nodeRef, uint8_t keyByte,
+                 ArtNode* child);
+void insertNode16(Node16* node, ArtNode** nodeRef, uint8_t keyByte,
+                  ArtNode* child);
+void insertNode48(Node48* node, ArtNode** nodeRef, uint8_t keyByte,
+                  ArtNode* child);
+void insertNode256(Node256* node, ArtNode** nodeRef, uint8_t keyByte,
+                   ArtNode* child);
 
 unsigned min(unsigned a, unsigned b) {
     // Helper function
     return (a < b) ? a : b;
 }
 
-void copyPrefix(Node* src, Node* dst) {
+void copyPrefix(ArtNode* src, ArtNode* dst) {
     // Helper function that copies the prefix from the source to the destination
     // node
     dst->prefixLength = src->prefixLength;
     memcpy(dst->prefix, src->prefix, min(src->prefixLength, maxPrefixLength));
 }
 
-void insert(Node* node, Node** nodeRef, uint8_t key[], unsigned depth,
+void insert(ArtNode* node, ArtNode** nodeRef, uint8_t key[], unsigned depth,
             uintptr_t value, unsigned maxKeyLength) {
     // Insert the leaf value into the tree
 
@@ -413,14 +417,14 @@ void insert(Node* node, Node** nodeRef, uint8_t key[], unsigned depth,
     }
 
     // Recurse
-    Node** child = findChild(node, key[depth]);
+    ArtNode** child = findChild(node, key[depth]);
     if (*child) {
         insert(*child, child, key, depth + 1, value, maxKeyLength);
         return;
     }
 
     // Insert leaf into inner node
-    Node* newNode = makeLeaf(value);
+    ArtNode* newNode = makeLeaf(value);
     switch (node->type) {
         case NodeType4:
             insertNode4(static_cast<Node4*>(node), nodeRef, key[depth],
@@ -441,7 +445,8 @@ void insert(Node* node, Node** nodeRef, uint8_t key[], unsigned depth,
     }
 }
 
-void insertNode4(Node4* node, Node** nodeRef, uint8_t keyByte, Node* child) {
+void insertNode4(Node4* node, ArtNode** nodeRef, uint8_t keyByte,
+                 ArtNode* child) {
     // Insert leaf into inner node
     if (node->count < 4) {
         // Insert element
@@ -467,7 +472,8 @@ void insertNode4(Node4* node, Node** nodeRef, uint8_t keyByte, Node* child) {
     }
 }
 
-void insertNode16(Node16* node, Node** nodeRef, uint8_t keyByte, Node* child) {
+void insertNode16(Node16* node, ArtNode** nodeRef, uint8_t keyByte,
+                  ArtNode* child) {
     // Insert leaf into inner node
     if (node->count < 16) {
         // Insert element
@@ -498,7 +504,8 @@ void insertNode16(Node16* node, Node** nodeRef, uint8_t keyByte, Node* child) {
     }
 }
 
-void insertNode48(Node48* node, Node** nodeRef, uint8_t keyByte, Node* child) {
+void insertNode48(Node48* node, ArtNode** nodeRef, uint8_t keyByte,
+                  ArtNode* child) {
     // Insert leaf into inner node
     if (node->count < 48) {
         // Insert element
@@ -522,20 +529,20 @@ void insertNode48(Node48* node, Node** nodeRef, uint8_t keyByte, Node* child) {
     }
 }
 
-void insertNode256(Node256* node, Node** nodeRef, uint8_t keyByte,
-                   Node* child) {
+void insertNode256(Node256* node, ArtNode** nodeRef, uint8_t keyByte,
+                   ArtNode* child) {
     // Insert leaf into inner node
     node->count++;
     node->child[keyByte] = child;
 }
 
 // Forward references
-void eraseNode4(Node4* node, Node** nodeRef, Node** leafPlace);
-void eraseNode16(Node16* node, Node** nodeRef, Node** leafPlace);
-void eraseNode48(Node48* node, Node** nodeRef, uint8_t keyByte);
-void eraseNode256(Node256* node, Node** nodeRef, uint8_t keyByte);
+void eraseNode4(Node4* node, ArtNode** nodeRef, ArtNode** leafPlace);
+void eraseNode16(Node16* node, ArtNode** nodeRef, ArtNode** leafPlace);
+void eraseNode48(Node48* node, ArtNode** nodeRef, uint8_t keyByte);
+void eraseNode256(Node256* node, ArtNode** nodeRef, uint8_t keyByte);
 
-void erase(Node* node, Node** nodeRef, uint8_t key[], unsigned keyLength,
+void erase(ArtNode* node, ArtNode** nodeRef, uint8_t key[], unsigned keyLength,
            unsigned depth, unsigned maxKeyLength) {
     // Delete a leaf from a tree
 
@@ -556,7 +563,7 @@ void erase(Node* node, Node** nodeRef, uint8_t key[], unsigned keyLength,
         depth += node->prefixLength;
     }
 
-    Node** child = findChild(node, key[depth]);
+    ArtNode** child = findChild(node, key[depth]);
     if (isLeaf(*child) &&
         leafMatches(*child, key, keyLength, depth, maxKeyLength)) {
         // Leaf found, delete it in inner node
@@ -580,7 +587,7 @@ void erase(Node* node, Node** nodeRef, uint8_t key[], unsigned keyLength,
     }
 }
 
-void eraseNode4(Node4* node, Node** nodeRef, Node** leafPlace) {
+void eraseNode4(Node4* node, ArtNode** nodeRef, ArtNode** leafPlace) {
     // Delete leaf from inner node
     unsigned pos = leafPlace - node->child;
     memmove(node->key + pos, node->key + pos + 1, node->count - pos - 1);
@@ -590,7 +597,7 @@ void eraseNode4(Node4* node, Node** nodeRef, Node** leafPlace) {
 
     if (node->count == 1) {
         // Get rid of one-way node
-        Node* child = node->child[0];
+        ArtNode* child = node->child[0];
         if (!isLeaf(child)) {
             // Concantenate prefixes
             unsigned l1 = node->prefixLength;
@@ -612,7 +619,7 @@ void eraseNode4(Node4* node, Node** nodeRef, Node** leafPlace) {
     }
 }
 
-void eraseNode16(Node16* node, Node** nodeRef, Node** leafPlace) {
+void eraseNode16(Node16* node, ArtNode** nodeRef, ArtNode** leafPlace) {
     // Delete leaf from inner node
     unsigned pos = leafPlace - node->child;
     memmove(node->key + pos, node->key + pos + 1, node->count - pos - 1);
@@ -633,7 +640,7 @@ void eraseNode16(Node16* node, Node** nodeRef, Node** leafPlace) {
     }
 }
 
-void eraseNode48(Node48* node, Node** nodeRef, uint8_t keyByte) {
+void eraseNode48(Node48* node, ArtNode** nodeRef, uint8_t keyByte) {
     // Delete leaf from inner node
     node->child[node->childIndex[keyByte]] = NULL;
     node->childIndex[keyByte] = emptyMarker;
@@ -656,7 +663,7 @@ void eraseNode48(Node48* node, Node** nodeRef, uint8_t keyByte) {
     }
 }
 
-void eraseNode256(Node256* node, Node** nodeRef, uint8_t keyByte) {
+void eraseNode256(Node256* node, ArtNode** nodeRef, uint8_t keyByte) {
     // Delete leaf from inner node
     node->child[keyByte] = NULL;
     node->count--;
@@ -676,4 +683,4 @@ void eraseNode256(Node256* node, Node** nodeRef, uint8_t keyByte) {
         delete node;
     }
 }
-}
+}  // namespace ART
